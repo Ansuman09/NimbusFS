@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package encoder;
+
+option go_package = "test-rpc/proto;proto";
+
+service Encoder {
+  rpc Encode (FileRequest) returns (EncodeResponse);
+}
+
+message FileRequest {
+  string filename = 1;
+  bytes file_data = 2;
+  string filefullname = 3;
+  int32 iteration = 4;
+}
+
+message EncodeResponse {
+  bool success = 1;
+  string message = 2;
+}
