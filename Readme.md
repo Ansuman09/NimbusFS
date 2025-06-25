@@ -13,7 +13,7 @@
 
 
 ### Implemented
-- Handle uploads via chunking to microservices to encode
+- Handle uploads via chunking to microservices for encoding
 - Naming server that stores metadata
 - Download client that pulls data and decodes
 
