@@ -2,9 +2,14 @@
 
 ### Architecture
 
----client--------Naming Server
--------\-----------\----
--------datanodes---parityNodes
+#### Nodes
+- Naming node
+- Data node
+- Parity node
+- Builder node
+- Encoder node(Client)
+- Decoder node(Client)
+
 
 
 ### Implemented
