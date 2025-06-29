@@ -51,10 +51,10 @@ int main(int argc,char *argv[]){
     while (fscanf(conffilein,"%s %s",key,value)==2 && values<2){
         if (strcmp(key,"K")==0){
             K=atoi(value);
-            printf(" %s: %d \n",key,K);
+            // printf(" %s: %d \n",key,K);
         }else if(strcmp(key,"M")==0){
             M=atoi(value);
-            printf(" %s: %d \n",key,M);
+            // printf(" %s: %d \n",key,M);
         }
         values++;
     }

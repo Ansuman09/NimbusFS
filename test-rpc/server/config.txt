@@ -1,0 +1,14 @@
+#data_parity_node_count
+K 3
+M 2
+
+#nameserver config
+mysql = 172.17.0.8:3306
+mysql-tcp = 172.17.0.8:9443
+
+#data-parity servers
+data0 = 172.17.0.2:9443
+data1 = 172.17.0.3:9443
+data2 = 172.17.0.4:9443
+parity0 = 172.17.0.5:9443
+parity1 = 172.17.0.6:9443

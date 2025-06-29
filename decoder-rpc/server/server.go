@@ -16,6 +16,43 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
+func ReadConfigFileAndInitalizeServers(nameserver *map[string]string, data_parity_servers *map[string]string, config string) error {
+
+	file, err := os.Open(config)
+	if err != nil {
+		fmt.Println("File not found", err)
+		return err
+	}
+
+	var currentMap map[string]string
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			if strings.Contains(line, "#nameserver") {
+				currentMap = *nameserver
+			} else if strings.Contains(line, "#data-parity") {
+				currentMap = *data_parity_servers
+			}
+			continue
+		}
+
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 && currentMap != nil {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			currentMap[key] = value
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Println("Error reading file:", err)
+		return err
+	}
+	return nil
+}
+
 func getFileinfoFromName(db *sql.DB, filename string) ([]fileinfo, error) {
 	resRows, err := db.Query("SELECT file_name,file_chunk_name,iteration FROM chunk_metadata WHERE file_name=?", filename)
 
@@ -43,6 +80,17 @@ func getFileinfoFromName(db *sql.DB, filename string) ([]fileinfo, error) {
 	return infos, nil
 }
 
+func InitializeServersToAllReachable(data_parity_servers *map[string]string) map[string]bool {
+
+	serverReachability := make(map[string]bool)
+
+	for name, _ := range *data_parity_servers {
+		serverReachability[name] = true
+	}
+
+	return serverReachability
+}
+
 type fileinfo struct {
 	filename   string
 	chunk_name string
@@ -56,10 +104,16 @@ type decoderServer struct {
 func (s *decoderServer) Decode(ctx context.Context, req *pb.FileRequest) (*pb.DecodeResponse, error) {
 	// fileDir := ("encoded_output")
 
+	//declare servers
+	data_parity_servers := make(map[string]string)
+	nameserver := make(map[string]string)
+
+	ReadConfigFileAndInitalizeServers(&nameserver, &data_parity_servers, "server_config.txt")
+
 	fileName := req.Filename
 
 	//get chunk names
-	db, err := sql.Open("mysql", "root:qwerty11@tcp(172.17.0.8:3306)/test")
+	db, err := sql.Open("mysql", "root:qwerty11@tcp("+nameserver["mysql"]+")/test")
 	if err != nil {
 		return &pb.DecodeResponse{
 			Message: "Unable to connect to the sql database",
@@ -69,41 +123,10 @@ func (s *decoderServer) Decode(ctx context.Context, req *pb.FileRequest) (*pb.De
 
 	fileChunkInfos, err := getFileinfoFromName(db, fileName)
 
-	//declare servers
-	data_parity_servers := make(map[string]string)
+	var reachable map[string]bool = InitializeServersToAllReachable(&data_parity_servers)
 
-	data_parity_servers["data0"] = "172.17.0.2:9443"
-	data_parity_servers["data1"] = "172.17.0.3:9443"
-	data_parity_servers["data2"] = "172.17.0.4:9443"
-	data_parity_servers["parity0"] = "172.17.0.5:9443"
-	data_parity_servers["parity1"] = "172.17.0.6:9443"
-
-	// server_connections := make(map[string]net.Conn)
-
-	// for server, ip_port := range data_parity_servers {
-	// 	// var ip_port string = data_parity_servers[server]
-	// 	conn, err := net.Dial("tcp", ip_port)
-	// 	if err != nil {
-	// 		return &pb.DecodeResponse{
-	// 			Message: fmt.Sprintf("Unable to connect to server %s\n %s ", server, err),
-	// 			Success: false,
-	// 		}, nil
-	// 	}
-
-	// 	server_connections[server] = conn
-	// }
-
-	//get chunk metadata
-
-	//get metadata
-	var reachable map[string]bool = make(map[string]bool)
-	reachable["data0"] = true
-	reachable["data1"] = true
-	reachable["data2"] = true
-	reachable["parity0"] = true
-	reachable["parity1"] = true
 	for _, info := range fileChunkInfos {
-		tcpconn_for_metadata, err := net.Dial("tcp", "172.17.0.8:9443")
+		tcpconn_for_metadata, err := net.Dial("tcp", nameserver["mysql-tcp"])
 		if err != nil {
 			fmt.Printf("Unable to connect to nameserver to send metadata %s\n", err)
 			return &pb.DecodeResponse{

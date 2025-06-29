@@ -31,6 +31,17 @@ type chunk_metadata struct {
 	iteration  int32
 }
 
+func InitializeServersToAllReachable(data_parity_servers *map[string]string) map[string]bool {
+
+	serverReachability := make(map[string]bool)
+
+	for name, _ := range *data_parity_servers {
+		serverReachability[name] = true
+	}
+
+	return serverReachability
+}
+
 func createFileinfoEntry(db *sql.DB, filedata fileinfo) (int64, error) {
 	res, err := db.Exec("INSERT INTO fileinfo (filename) VALUES (?)", filedata.filename)
 	if err != nil {
@@ -58,6 +69,54 @@ func (s *encoderServer) Encode(ctx context.Context, req *pb.FileRequest) (*pb.En
 	inputDir := "uploads"
 	outputDir := "encoded_output"
 
+	//gather configs//
+	file, err := os.Open("server_config.txt")
+	if err != nil {
+		// fmt.Println("Error opening file:", err)
+		return &pb.EncodeResponse{
+			Message: "Unable to open config file",
+			Success: false,
+		}, nil
+	}
+	defer file.Close()
+
+	nameserver := make(map[string]string)
+	data_parity_servers := make(map[string]string)
+
+	var currentMap map[string]string
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			if strings.Contains(line, "#nameserver") {
+				currentMap = nameserver
+			} else if strings.Contains(line, "#data-parity") {
+				currentMap = data_parity_servers
+			}
+			continue
+		}
+
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 && currentMap != nil {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			currentMap[key] = value
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		// fmt.Println("Error reading file:", err)
+		return &pb.EncodeResponse{
+			Message: "Error reading config file",
+			Success: false,
+		}, nil
+	}
+
+	// Print results
+
+	//--end config-gather--//
+
 	//get full filename and iteration
 	// fileNameWithFormat := req.Filefullname
 	var iteration int32 = req.Iteration
@@ -69,7 +128,7 @@ func (s *encoderServer) Encode(ctx context.Context, req *pb.FileRequest) (*pb.En
 	fp := filepath.Join(inputDir, req.Filename)
 
 	//file path , data in bytes and permission
-	err := os.WriteFile(fp, req.FileData, 0644)
+	err = os.WriteFile(fp, req.FileData, 0644)
 
 	if err != nil {
 		return &pb.EncodeResponse{
@@ -80,14 +139,6 @@ func (s *encoderServer) Encode(ctx context.Context, req *pb.FileRequest) (*pb.En
 
 	fmt.Printf("cmd params %s and %s %s \n", fp, outputDir, req.Filename)
 	cmd := exec.Command("./encoder", fp, outputDir, req.Filename)
-
-	// output, err := cmd.CombinedOutput()
-	// if err != nil {
-	// 	return &pb.EncodeResponse{
-	// 		Success: false,
-	// 		Message: fmt.Sprintf("Encoding failed: %s\n%s", err, output),
-	// 	}, nil
-	// }
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -106,7 +157,7 @@ func (s *encoderServer) Encode(ctx context.Context, req *pb.FileRequest) (*pb.En
 
 	//connect to the sql database on the nameserver to send the chunkfile update
 
-	db, err := sql.Open("mysql", "root:qwerty11@tcp(172.17.0.8:3306)/test")
+	db, err := sql.Open("mysql", "root:qwerty11@tcp("+nameserver["mysql"]+")/test")
 	if err != nil {
 		return &pb.EncodeResponse{
 			Message: "Unable to connect to the sql database",
@@ -133,40 +184,17 @@ func (s *encoderServer) Encode(ctx context.Context, req *pb.FileRequest) (*pb.En
 
 	//mark if all files were send successfully
 	var successFulFiletransfer int = 1
-	scanner := bufio.NewScanner(stdout)
+	scanner = bufio.NewScanner(stdout)
 
 	chunkdata := chunk_metadata{chunk_name: req.Filename, iteration: iteration, filename: req.Filefullname}
 
 	metadataFilePath := filepath.Join(outputDir, chunkdata.chunk_name+"_metadata")
 
 	//rename later
-	data_parity_servers := make(map[string]string)
-	data_parity_servers["data0"] = "172.17.0.2:9443"
-	data_parity_servers["data1"] = "172.17.0.3:9443"
-	data_parity_servers["data2"] = "172.17.0.4:9443"
-	data_parity_servers["parity0"] = "172.17.0.5:9443"
-	data_parity_servers["parity1"] = "172.17.0.6:9443"
-
-	server_connections := make(map[string]net.Conn)
-
-	for server, ip_port := range data_parity_servers {
-		// var ip_port string = data_parity_servers[server]
-		conn, err := net.Dial("tcp", ip_port)
-		if err != nil {
-			return &pb.EncodeResponse{
-				Message: fmt.Sprintf("Unable to connect to server %s\n %s ", server, err),
-				Success: false,
-			}, nil
-		}
-
-		// add log
-
-		server_connections[server] = conn
-	}
 
 	chunkMetadata_file_name_for_nameserver := chunkdata.chunk_name + "_metadata"
 
-	tcpconn, err := net.Dial("tcp", "172.17.0.8:9443")
+	tcpconn, err := net.Dial("tcp", nameserver["mysql-tcp"])
 	if err != nil {
 		fmt.Printf("Unable to connect to nameserver to send metadata %s\n", err)
 		return &pb.EncodeResponse{
@@ -187,24 +215,30 @@ func (s *encoderServer) Encode(ctx context.Context, req *pb.FileRequest) (*pb.En
 
 	metadataFile, err := os.OpenFile(metadataFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 
+	var reachable map[string]bool = InitializeServersToAllReachable(&data_parity_servers)
+
 	for scanner.Scan() {
 		// line := scanner.Text()
 		name_of_file_to_send := scanner.Text()
 		fmt.Printf("%s\n", name_of_file_to_send)
 		parts_of_out := strings.Split(name_of_file_to_send, "_")
 
-		//does the file belong to which of the data or parity nodes
+		//file belong to which of the data or parity nodes
 		desgnated_server := data_parity_servers[parts_of_out[len(parts_of_out)-2]]
 
-		//work to do:
-		// create the 5 servers note ip and update
-		// send metadata file name and metadata content over this tcp.
-		// send files over tcp
+		if !reachable[parts_of_out[len(parts_of_out)-2]] {
+			fmt.Printf("%s server is not reachable\n", parts_of_out[len(parts_of_out)-2])
+			continue
+		}
+		//starts connection to designated server and sends data.
 		server_tcp_conn, err := net.Dial("tcp", desgnated_server)
+
 		if err != nil {
 			fmt.Printf("Unable to send data for file %s %s", name_of_file_to_send, err)
-			break
+			reachable[parts_of_out[len(parts_of_out)-2]] = false
+			continue
 		}
+
 		_, err = fmt.Fprintf(server_tcp_conn, "UPLOAD %s \n", name_of_file_to_send)
 		if err != nil {
 			return &pb.EncodeResponse{
@@ -223,6 +257,7 @@ func (s *encoderServer) Encode(ctx context.Context, req *pb.FileRequest) (*pb.En
 				Success: false,
 			}, nil
 		}
+
 		bytesSentOfChunk, err := io.Copy(server_tcp_conn, byte64_chunk_file)
 		if err != nil {
 			return &pb.EncodeResponse{
@@ -242,6 +277,7 @@ func (s *encoderServer) Encode(ctx context.Context, req *pb.FileRequest) (*pb.En
 			log.Fatal(err)
 		}
 		///if error while sending successFulFiletransfer * 0
+		server_tcp_conn.Close()
 	}
 	metadataFile.Close()
 
@@ -265,11 +301,6 @@ func (s *encoderServer) Encode(ctx context.Context, req *pb.FileRequest) (*pb.En
 
 	fmt.Printf("File '%s' sent successfully (%d bytes)\n", chunkMetadata_file_name_for_nameserver, bytesSent)
 
-	server_connections["data0"].Close()
-	server_connections["data1"].Close()
-	server_connections["data2"].Close()
-	server_connections["parity0"].Close()
-	server_connections["parity1"].Close()
 	defer metadataFile.Close()
 
 	fmt.Printf("chunk name now %s\n", chunkdata.chunk_name)

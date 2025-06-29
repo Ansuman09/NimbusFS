@@ -1,8 +1,8 @@
 K 3
 M 2
 
-data0 : ip
-data1 : ip
-data2 : ip
-parity0 : ip
-parity1 : ip
+afe
+ad
+a
+d
+ad
