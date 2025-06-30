@@ -53,8 +53,8 @@ ENV PATH=$PATH:/go/bin
 # Copy application files (update this as needed)
 COPY test-rpc .
 COPY decoder-rpc .
-COPY encode_decode/decoder.c decoder-rpc/
-COPY encode_decode/encoder.c test-rpc/
+COPY encode_decode/decoder.c decoder-rpc/server/
+COPY encode_decode/encoder.c test-rpc/server/
 COPY run.sh .
 
 # Build step (optional: can do at runtime too)

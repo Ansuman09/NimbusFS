@@ -1,11 +1,10 @@
 syntax = "proto3";
-
 package encoder;
 
-option go_package = "test-rpc/proto;proto";
+option go_package = "github.com/Ansuman09/NimbusFS/encoderpb;encoderpb";
 
 service Encoder {
-  rpc Encode (FileRequest) returns (EncodeResponse);
+  rpc Encode(FileRequest) returns (EncodeResponse);
 }
 
 message FileRequest {
@@ -14,7 +13,6 @@ message FileRequest {
   string filefullname = 3;
   int32 iteration = 4;
 }
-
 message EncodeResponse {
   bool success = 1;
   string message = 2;

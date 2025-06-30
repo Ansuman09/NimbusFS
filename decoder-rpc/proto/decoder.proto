@@ -1,17 +1,15 @@
 syntax = "proto3";
-
 package decoder;
 
-option go_package = "test-rpc/proto;proto";
+option go_package = "github.com/Ansuman09/NimbusFS/decoderpb;decoderpb";
 
 service Decoder {
-  rpc Decode (FileRequest) returns (DecodeResponse);
+  rpc Decode(FileRequest) returns (DecodeResponse);
 }
 
 message FileRequest {
   string filename = 1;
 }
-
 message DecodeResponse {
   bool success = 1;
   string message = 2;
