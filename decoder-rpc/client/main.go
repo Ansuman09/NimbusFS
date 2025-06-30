@@ -18,7 +18,7 @@ func main() {
 	// const chunkSize = 3 * 1024 * 1024 // 3 MB
 
 	conn, err := grpc.Dial(
-		"localhost:50051",
+		"localhost:50052",
 		grpc.WithTransportCredentials(insecure.NewCredentials()), // insecure mode
 		grpc.WithBlock(), // optional: block until connected
 	)
