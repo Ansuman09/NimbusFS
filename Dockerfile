@@ -50,16 +50,34 @@ RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
 # Set PATH for protoc-gen plugins
 ENV PATH=$PATH:/go/bin
 
-# Copy application files (update this as needed)
-COPY test-rpc .
-COPY decoder-rpc .
-COPY encode_decode/decoder.c decoder-rpc/server/
-COPY encode_decode/encoder.c test-rpc/server/
+# Copy application files 
+COPY test-rpc/server/* /app/test-rpc/server/
+COPY test-rpc/proto/* /app/test-rpc/proto/
+COPY test-rpc/go* /app/decoder-rpc/
+
+COPY decoder-rpc/server/* /app/decoder-rpc/server/
+COPY decoder-rpc/proto/* /app/decoder-rpc/proto/
+COPY decoder-rpc/go* /app/decoder-rpc/
+
+#Copy over the coder and decoder file to the server locations
+COPY encode_decode/decoder.c /app/decoder-rpc/server/
+COPY encode_decode/encoder.c /app/test-rpc/server/
+COPY encode_decode/config.txt /app/decoder-rpc/server/ 
+COPY encode_decode/config.txt /app/test-rpc/server/
 COPY run.sh .
 
-# Build step (optional: can do at runtime too)
+
+#BUILD the encoder and decoder
+RUN gcc /app/test-rpc/server/encoder.c -o /app/test-rpc/server/encoder -L/usr/lib -lisal
+RUN gcc /app/decoder-rpc/server/decoder.c -o  /app/decoder-rpc/server/decoder -lisal
+
 # RUN go build -o server ./server
 RUN chmod +x run.sh
-# Default CMD (can be changed if needed)
+# Default CMD 
 CMD ["./run.sh"]
+
+# CMD ["/bin/sh", "-c", "go run /app/decoder-rpc/server/main.go & go run /app/test-rpc/server/main.go && wait"]
+
+#start the service
+
 
