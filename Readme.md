@@ -74,9 +74,9 @@ As seen below, the stopped nodes are no longer running:
 ![Two nodes stopped](./images/stopped_storage_servers.PNG)
 
 Now lets download the file.
-to do this go to  decoder-rpc/client from root dirctory of the project and run "go run <file_name>"
+to do this go to  decoder-rpc/client from root dirctory of the project and run "go run <file_name>".
 
-output of "go run main.go video.mp4"
+output of "go run main.go video.mp4".
 ![Decode Output](./images/download_complete.PNG)
 
 final file 🤩:
@@ -85,13 +85,13 @@ final file 🤩:
 As you can see we have successfully downloaded the full file, even if two of our storage servers went down. The increase in filesize is due to the default 64KB blocks that we use to write the decoded data.
 
 ### Implemented
-- Handle uploads via chunking to microservices for encoding
-- Naming server that stores metadata
-- Download client that pulls data and decodes
+- Handle uploads via chunking to microservices for encoding.
+- Naming server that stores metadata.
+- Download client that pulls data and decodes.
 
 ### Features in development
-- High Availability during Upload
-- Conccurent uploads
-- Conccurent Downloads
-- Upload/Download retries
-- Builder Node
+- High Availability during Upload.
+- Conccurent uploads.
+- Conccurent Downloads.
+- Upload/Download retries.
+- Builder Node.
