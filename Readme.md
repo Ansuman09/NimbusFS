@@ -33,7 +33,7 @@ We are going to run the servers in containers. But it can be extended to VMs or 
 The default setup has M=2 and K=3 i.e 3 data storage nodes and 2 parity storage nodes. Which means we can afford upto M = 2 failures and still generate the data.
 
 This is where we are at after starting all the severs. Lets do a "docker ps"
-![Install Step 1](./images/all_servser.PNG)
+![Running servers](./images/all_servers.PNG)
 
 ### Implemented
 - Handle uploads via chunking to microservices for encoding
