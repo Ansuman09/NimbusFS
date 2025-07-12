@@ -157,9 +157,3 @@ go run main.go <file_name>
 ## 🤝 Contributing
 
 Feel free to fork and submit PRs!
-
----
-
-## 📄 License
-
-MIT License
