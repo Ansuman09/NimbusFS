@@ -1,97 +1,165 @@
-## This is a file storage application that uses erasure coding
+# Distributed File Storage System with Erasure Coding
 
-### Architecture
+## 🧩 Overview
 
-#### Nodes
-- Naming node
-- Data node
-- Parity node
-- Encoder node(Client)
-- Decoder node(Client)
+This is a distributed file storage system that uses **erasure coding** to store data with high availability and fault tolerance. It is capable of surviving up to `M` storage node failures using parity encoding and decoding.
 
+---
 
-### Steps to run the application
-#### Start the Encoder Decoder Node and Mount the decoded folder to your file path
+## 🏗️ Architecture
+
+### Components
+
+- **Naming Node** – Tracks file metadata.
+- **Data Node** – Stores data chunks.
+- **Parity Node** – Stores parity chunks.
+- **Encoder Node (Client)** – Uploads and encodes files.
+- **Decoder Node (Client)** – Downloads and decodes files.
+
+---
+
+## 🚀 Getting Started
+
+### Step 1: Build and Start the Handler (Encoder/Decoder Node)
+
+```bash
 docker build -t ubuntu-c .
-docker run -d --name handler -p 50051:50051 -p 50052:50052 -v C:\Users\<username>\Downloads\:/app/decoder-rpc/server/decoded ubuntu-c 
+docker run -d --name handler -p 50051:50051 -p 50052:50052 -v C:\Users\<username>\Downloads\:/app/decoder-rpc/server/decoded ubuntu-c
+```
 
+> Replace `<username>` with your local username.
 
-- Execute the below commands to build the encoder, prepare the protofiles and starting the server.
-- go inside the helper container and run "go run main.go server.go" inside decoder-rpc/server and test-rpc/server
-- This is to avoid creating another container. 
-- But ideally you can create one for decoder and encoder from the same image just provide specific port-mappings for each one.
-- Move the schema.sql to the nameserver and build the database "test"
-- docker cp schema.sql mysql-container:/
+---
 
-- Now Head into the storage-instance directory and start the containers. Does not matter what name you give to them make sure to note the IPs.
-- build image: docker build -t server-image .
-- docker run --name <server-node-1> -p 9443:9443 server-image (make sure to start K+M servers)
-- Until we start using docker-compose for a containerized env (Coming soon) we wiil have to manually make note of the ips used by all the servers we just started and update the server_config for handler/app/test-rpc/server and handler/app/decoder-rpc/server. 
+### Step 2: Start gRPC Servers Inside Container
 
-### Lets See it in action. 😉
-We are going to run the servers in containers. But it can be extended to VMs or standalone Servers.
+```bash
+docker exec -it handler bash
+cd decoder-rpc/server && go run main.go server.go
+cd test-rpc/server && go run main.go server.go
+```
 
-The default setup has M=2 and K=3 i.e 3 data storage nodes and 2 parity storage nodes. Which means we can afford upto M = 2 failures and still generate the data.
+---
 
-This is where we are at after starting all the severs. Lets do a "docker ps"
+### Step 3: Setup Naming Server Database
+
+```bash
+docker cp schema.sql mysql-container:/
+```
+
+Create the `test` database in MySQL using the copied schema.
+
+---
+
+### Step 4: Start Storage Nodes
+
+```bash
+docker build -t server-image .
+docker run --name <server-node-1> -p 9443:9443 server-image
+```
+
+> Ensure all `K + M` servers are running and note their IPs.
+
+---
+
+### Step 5: Update Server Configs
+
+Update IPs in:
+
+- `handler/app/test-rpc/server/server_config.json`
+- `handler/app/decoder-rpc/server/server_config.json`
+
+> Docker Compose support coming soon.
+
+---
+
+## 📽️ Let’s See It in Action
+
+Default: `K=3`, `M=2` (3 data nodes, 2 parity nodes).
+
+### View Running Containers
+
+```bash
+docker ps
+```
+
 ![Running servers](./images/all_servers.PNG)
-As you can see we are running 3 data nodes and 2 parity nodes.
 
-Now we will be uploading the file via cli. So move the file you want to send to test-rpc/client directory and run "go run main.go <file_name>"
+---
+
+### Uploading a File
+
+```bash
+cd test-rpc/client
+go run main.go <file_name>
+```
+
 ![Upload file](./images/before_decode.PNG)
-
-output of "go run main.go video.mp4"
 ![Upload action](./images/uploading_file.PNG)
 
-We have implemented chunked file transfer using gRPC, which allows efficient streaming and processing of large files.
+---
 
-🔄 Why Chunks?
-gRPC has a default message size limit of 4 MB.
-We chose to send data in 3 MB chunks to stay under the limit and ensure stable transmission.
+### 🔄 Chunked File Transfer
 
-📤 Transfer Flow
-Files are read and divided into 3 MB chunks.
-Each chunk is sent to the gRPC service using a FileRequest.
-The server receives and encodes each chunk.
+#### Why Chunks?
 
-Encoded data is distributed to data and parity nodes for redundancy and recovery
+- gRPC 4 MB limit → we use 3 MB chunks.
 
-Now to test the High Availability feature of the setup. We will be bringing down 2 nodes at random (data0 and parity0).
-![Updated file](./images/stopped_storage_servers.PNG)
+#### Transfer Flow:
 
-#### 🛡️ High Availability Test
-To validate the system’s fault tolerance, we simulate node failures and verify that file reconstruction remains possible using the remaining nodes.
+- Split file → Send chunks → Encode → Distribute.
 
-🔧 Test Scenario
-We intentionally shut down two storage nodes at random:
+---
 
-data0
-parity0
+## 🛡️ High Availability Test
 
-This simulates partial system failure while maintaining the ability to reconstruct missing data from redundancy/parity.
+Shutdown:
 
-As seen below, the stopped nodes are no longer running:
+- `data0`
+- `parity0`
+
 ![Two nodes stopped](./images/stopped_storage_servers.PNG)
 
-Now lets download the file.
-to do this go to  decoder-rpc/client from root dirctory of the project and run "go run <file_name>".
+System can still decode the file.
 
-output of "go run main.go video.mp4".
+---
+
+### Downloading a File
+
+```bash
+cd decoder-rpc/client
+go run main.go <file_name>
+```
+
 ![Decode Output](./images/download_complete.PNG)
-
-final file 🤩:
 ![Downloaded File](./images/after_decode.PNG)
 
-As you can see we have successfully downloaded the full file, even if two of our storage servers went down. The increase in filesize is due to the default 64KB blocks that we use to write the decoded data.
+---
 
-### Implemented
-- Handle uploads via chunking to microservices for encoding.
-- Naming server that stores metadata.
-- Download client that pulls data and decodes.
+## ✅ Implemented Features
 
-### Features in development
-- High Availability during Upload.
-- Conccurent uploads.
-- Conccurent Downloads.
-- Upload/Download retries.
-- Builder Node.
+- ✅ Chunked gRPC upload
+- ✅ Naming server for metadata
+- ✅ Redundant storage (K+M)
+- ✅ Fault-tolerant downloads
+
+---
+
+## 🔧 In Development
+
+- [ ] Docker Compose support
+- [ ] Concurrent uploads/downloads
+- [ ] Retry logic
+- [ ] Builder Node
+
+---
+
+## 🤝 Contributing
+
+Feel free to fork and submit PRs!
+
+---
+
+## 📄 License
+
+MIT License
