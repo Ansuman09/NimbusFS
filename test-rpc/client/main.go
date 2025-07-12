@@ -15,76 +15,67 @@ import (
 )
 
 func main() {
-
 	const chunkSize = 3 * 1024 * 1024 // 3 MB
 
 	conn, err := grpc.Dial(
 		"localhost:50051",
-		grpc.WithTransportCredentials(insecure.NewCredentials()), // insecure mode
-		grpc.WithBlock(), // optional: block until connected
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(),
 	)
+	if err != nil {
+		log.Fatalf("Failed to connect to server: %v", err)
+	}
 	defer conn.Close()
 
 	client := pb.NewEncoderClient(conn)
 
-	filePath := os.Args[1]
-
-	// fileData, err := os.ReadFile(filePath)
-	// if err != nil {
-	// 	log.Fatalf("Failed to read file: %v", err)
-	// }
-
-	// open the file and send it in chunks
-	// returns *os.File pointer
-	file, err := os.Open(filePath)
-
-	if err != nil {
-		fmt.Println("Error opening file:", err)
-		return
+	if len(os.Args) < 2 {
+		log.Fatalf("Usage: %s <file_path>", os.Args[0])
 	}
 
-	buffer := make([]byte, chunkSize)
-
+	filePath := os.Args[1]
+	file, err := os.Open(filePath)
+	if err != nil {
+		log.Fatalf("Error opening file: %v", err)
+	}
 	defer file.Close()
 
+	buffer := make([]byte, chunkSize)
 	var chunkCounter int32 = 0
+
 	for {
+		n, err := file.Read(buffer)
+		if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+			log.Fatalf("Error reading file: %v", err)
+		}
 
-		//change pointer by buffer
-		n, fileerr := io.ReadFull(file, buffer)
-		print(n)
+		if n == 0 {
+			break // Nothing more to send
+		}
 
-		// Process in chunk
-		var fileData []byte = buffer[:n]
+		fileData := buffer[:n]
+		formattedName := fmt.Sprintf("%s_%d", filePath, chunkCounter)
+
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-		formattedName := fmt.Sprintf("%s_%d", os.Args[1], chunkCounter)
+
 		resp, err := client.Encode(ctx, &pb.FileRequest{
 			Filename:     formattedName,
 			FileData:     fileData,
 			Iteration:    chunkCounter,
 			Filefullname: filePath,
 		})
-
 		cancel()
-
-		fmt.Printf("Success: %v\nMessage: %s\n ", resp.Success, resp.Message)
 
 		if err != nil {
 			log.Fatalf("Error during encoding: %v", err)
 		}
 
-		// send the last chunks and break off
-		if fileerr == io.EOF {
-			break // End of file reached
-		} else if fileerr == io.ErrUnexpectedEOF {
-			break // Less than chunkSize bytes left; we skip them
-		} else if fileerr != nil {
-			fmt.Println("Read error:", err)
-			break
-		}
+		fmt.Printf("Chunk %d: Success: %v, Message: %s\n", chunkCounter, resp.Success, resp.Message)
 
 		chunkCounter++
 
+		if err == io.EOF {
+			break
+		}
 	}
-
 }

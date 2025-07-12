@@ -53,7 +53,7 @@ ENV PATH=$PATH:/go/bin
 # Copy application files 
 COPY test-rpc/server/* /app/test-rpc/server/
 COPY test-rpc/proto/* /app/test-rpc/proto/
-COPY test-rpc/go* /app/decoder-rpc/
+COPY test-rpc/go* /app/test-rpc/
 
 COPY decoder-rpc/server/* /app/decoder-rpc/server/
 COPY decoder-rpc/proto/* /app/decoder-rpc/proto/

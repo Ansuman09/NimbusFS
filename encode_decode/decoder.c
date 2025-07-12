@@ -91,10 +91,13 @@ int main(int argc, char *argv[]) {
             return 1;
         }
     }
-    FILE *fout = fopen(argv[1], "r+b");
+
+    char path[256];  
+    snprintf(path, sizeof(path), "decoded/%s", argv[1]);
+    FILE *fout = fopen(path, "r+b"); 
     if (!fout) {
         // File doesn't exist, create it
-        fout = fopen(argv[1], "w+b");
+        fout = fopen(path, "w+b");
         if (!fout) {
             perror("open output file");
             return 1;
